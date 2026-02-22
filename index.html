@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机词条</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入谷歌字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* 全局字体 */
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #f3f4f6;
+        }
+        
+        /* 隐藏滚动条 */
+        body::-webkit-scrollbar { display: none; }
+        body { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 全屏容器 */
+        .fullscreen-container {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: background-color 0.5s ease;
+        }
+
+        /* 步骤三的特殊容器 - 保持浅色背景 */
+        #single-display.fullscreen-container {
+            background-color: #f8f9fa;
+        }
+
+        /* 倒计时界面保持深色 */
+        #countdown-display.fullscreen-container {
+            background-color: #050505;
+            color: white;
+        }
+
+        /* 背景网格动画 (仅深色模式可见) */
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(255, 0, 222, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 222, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+
+        /* 激光扫描线 */
+        .laser-scan {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00ffff, transparent);
+            animation: laserScan 2s linear infinite;
+            z-index: 1;
+            opacity: 0.7;
+            box-shadow: 0 0 10px #00ffff;
+        }
+
+        @keyframes laserScan {
+            0% { top: 0; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* 霓虹按钮 (深色背景) */
+        .neon-btn {
+            background: transparent;
+            border: 2px solid #ff00de;
+            color: #ff00de;
+            text-shadow: 0 0 5px #ff00de;
+            box-shadow: 0 0 10px rgba(255, 0, 222, 0.3), inset 0 0 10px rgba(255, 0, 222, 0.1);
+            transition: all 0.3s;
+            backdrop-filter: blur(5px);
+        }
+
+        .neon-btn:hover {
+            background: #ff00de;
+            color: #0a0a0a;
+            box-shadow: 0 0 20px #ff00de, 0 0 40px #ff00de;
+            transform: scale(1.05);
+        }
+
+        /* 倒计时数字样式 - 深色背景专用 */
+        .countdown-digit {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 
+                0 0 5px #fff,
+                0 0 10px #fff,
+                0 0 20px #00ffff,
+                0 0 40px #00ffff;
+            transition: all 0.3s ease;
+        }
+
+        /* 暂停状态下的倒计时 */
+        .countdown-paused {
+            color: #ff00de !important;
+            text-shadow: 0 0 20px #ff00de !important;
+            filter: grayscale(80%);
+        }
+
+        /* 粒子爆炸动画 */
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: explode 1s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; }
+        }
+
+        /* 步骤2选项随机出现动画 */
+        .random-item {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideUp 0.5s forwards;
+        }
+
+        @keyframes slideUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 倒计时结束特效 - 全屏闪烁 */
+        @keyframes finishFlash {
+            0% { background-color: #050505; }
+            10% { background-color: #ff00de; }
+            20% { background-color: #050505; }
+            30% { background-color: #00ffff; }
+            40% { background-color: #050505; }
+            100% { background-color: #050505; }
+        }
+
+        .finish-anim {
+            animation: finishFlash 1.5s ease-out;
+        }
+
+        /* 爆炸文字效果 */
+        .explode-text {
+            animation: explodeTextAnim 1s ease-out forwards;
+            position: absolute;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        @keyframes explodeTextAnim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; filter: blur(0px); }
+            100% { transform: translate(var(--tx), var(--ty)) scale(1.5); opacity: 0; filter: blur(5px); }
+        }
+
+        /* 步骤三的特殊样式 */
+        #single-word {
+            color: #1a1a1a;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+        }
+        
+        /* 步骤三的按钮样式 */
+        #single-display .neon-btn {
+            border-color: #333;
+            color: #333;
+            text-shadow: none;
+            box-shadow: none;
+        }
+        #single-display .neon-btn:hover {
+            background: #333;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 暂停按钮的特定样式 */
+        .btn-pause {
+            border-color: #fbbf24;
+            color: #fbbf24;
+            text-shadow: 0 0 5px #fbbf24;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+        .btn-pause:hover {
+            background: #fbbf24;
+            color: #000;
+            box-shadow: 0 0 20px #fbbf24;
+        }
+
+        /* 多选下拉框样式优化 */
+        select[multiple] {
+            background-image: none; /* 移除默认下拉箭头 */
+            padding-right: 1rem;
+        }
+        
+        /* 自定义滚动条样式 (针对多选框) */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden relative z-10">
+        
+        <!-- 步骤1: 输入界面 -->
+        <div id="step1" class="p-8 space-y-6">
+            <h1 class="text-2xl font-bold text-center text-gray-800">⚙️ 设置词条与倒计时</h1>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    每行输入一个词条 <span class="text-gray-400 text-xs">(当前词条数: <span id="term-count">0</span>)</span>
+                </label>
+                <textarea id="inputList" 
+                    class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none text-gray-600 bg-gray-50"
+                    placeholder="每行输入一个词条，例如：&#10;苹果&#10;香蕉&#10;橘子"></textarea>
+            </div>
+
+            <div class="flex items-center justify-center space-x-3">
+                <label class="text-gray-700 font-medium">抽取数量 (N):</label>
+                <input type="number" id="nValue" value="3" min="1" 
+                    class="w-20 p-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-bold text-lg">
+            </div>
+
+            <!-- 倒计时设置 -->
+            <div class="flex items-center justify-center space-x-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label class="text-gray-700 font-medium">倒计时:</label>
+                <div class="flex space-x-1 items-center">
+                    <input type="number" id="countdownHour" value="0" min="0" max="23"
+                        class="w-14 p-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono">
+                    <span class="text-gray-500 font-bold">h</span>
+                    <input type="number" id="countdownMinute" value="0" min="0" max="59"
+                        class="w-14 p-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono">
+                    <span class="text-gray-500 font-bold">m</span>
+                    <input type="number" id="countdownSecond" value="30" min="0" max="59"
+                        class="w-14 p-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono">
+                    <span class="text-gray-500 font-bold">s</span>
+                </div>
+            </div>
+
+            <!-- 保存/加载功能 -->
+            <div class="flex flex-col space-y-2 pt-2 border-t border-gray-100">
+                <!-- 保存区域 -->
+                <div class="flex space-x-2">
+                    <input type="text" id="saveName" 
+                        class="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                        placeholder="输入名称保存当前配置">
+                    <button onclick="saveTerms()" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow">
+                        保存
+                    </button>
+                </div>
+                
+                <!-- 加载区域 - 多选 -->
+                <div class="flex space-x-2 items-start">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 mb-1 block">选择词库 (按住 Ctrl/Cmd 多选)</label>
+                        <select id="loadSelect" multiple 
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:border-blue-500 h-24 custom-scroll">
+                            <!-- 选项将由 JS 动态生成 -->
+                        </select>
+                    </div>
+                    <div class="flex flex-col space-y-1 pt-5">
+                        <button onclick="loadTerms()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition shadow">
+                            加载
+                        </button>
+                        <button onclick="deleteSelectedTerms()" 
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition shadow">
+                            删除
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="goToStep2()" 
+                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg transform hover:-translate-y-0.5">
+                🎲 开始随机抽取
+            </button>
+            <div id="step1-error" class="text-red-500 text-sm text-center hidden font-medium"></div>
+        </div>
+
+        <!-- 步骤2: 随机展示n个选项 -->
+        <div id="step2" class="p-8 space-y-6 hidden">
+            <h2 class="text-xl font-bold text-center text-gray-800">
+                请从以下 <span id="n-display" class="text-blue-600 text-2xl">3</span> 个选项中选择一个：
+            </h2>
+            
+            <div id="random-container" class="flex flex-col space-y-3 w-full min-h-[200px] justify-center">
+                <!-- JS动态生成 -->
+            </div>
+
+            <div class="flex flex-col space-y-3 mt-6">
+                <button onclick="goToStep2()" 
+                    class="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-4 rounded-lg transition shadow">
+                    🔄 再试一次 (重新随机)
+                </button>
+                <button onclick="goToStep1()" 
+                    class="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 rounded-lg transition">
+                    ← 返回重新设置
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤3: 全屏展示单个词 -->
+        <div id="single-display" class="fullscreen-container hidden">
+            <button onclick="goBackToStep2()" 
+                class="absolute top-6 left-6 bg-white/80 hover:bg-white text-gray-600 px-4 py-2 rounded-lg font-medium transition shadow border border-gray-200 backdrop-blur-sm">
+                ← 返回选项
+            </button>
+
+            <div class="flex-1 flex items-center justify-center w-full px-8 py-12">
+                <div id="single-word" 
+                    class="text-center font-bold 
+                           flex flex-wrap justify-center items-center
+                           text-6xl md:text-8xl lg:text-9xl 
+                           leading-none max-w-full break-words word-display transition-all duration-300">
+                    <!-- 词会在这里显示 -->
+                </div>
+            </div>
+
+            <div class="fixed bottom-8 left-0 right-0 flex justify-center space-x-4">
+                <button onclick="goBackToStep2()" 
+                    class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-3 px-6 rounded-lg transition shadow-md border border-gray-200">
+                    返回选单
+                </button>
+                <button onclick="goToStep1()" 
+                    class="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-lg transition shadow-md">
+                    结束/重置
+                </button>
+                <!-- 倒计时按钮 -->
+                <button onclick="startCountdown()" 
+                    class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition shadow-md flex items-center space-x-2">
+                    <span>⏱️</span> <span>开始倒计时</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤4: 倒计时界面 -->
+        <div id="countdown-display" class="fullscreen-container hidden">
+            <!-- 背景与特效 -->
+            <div class="grid-bg"></div>
+            <div class="laser-scan"></div>
+            <div class="particle-container absolute inset-0 overflow-hidden pointer-events-none z-20" id="particle-container"></div>
+
+            <!-- **移除了词条预览** -->
+
+            <div class="flex-1 flex flex-col items-center justify-center w-full px-8 py-12 relative z-10">
+                <!-- 倒计时数字 -->
+                <div id="countdown-number" 
+                    class="text-center font-bold 
+                           text-6xl md:text-8xl lg:text-[10rem] 
+                           countdown-digit select-none cursor-pointer"
+                           onclick="togglePause()">
+                    <!-- 倒计时数字会在这里显示 -->
+                </div>
+                <div class="text-gray-400 mt-4 text-lg font-mono tracking-widest opacity-60">点击数字可暂停</div>
+            </div>
+
+            <div class="fixed bottom-8 left-0 right-0 flex justify-center space-x-4 relative z-30">
+                <button id="btn-pause" onclick="togglePause()" 
+                    class="neon-btn btn-pause px-6 py-3 rounded-lg font-bold text-lg tracking-wider">
+                    暂停 (Pause)
+                </button>
+                <button onclick="cancelCountdown()" 
+                    class="neon-btn px-6 py-3 rounded-lg font-bold text-lg tracking-wider">
+                    取消
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 全局状态
+        let state = {
+            n: 3,
+            countdown: 30, // 默认30秒
+            terms: [],
+            randomSelection: [],
+            selectedTerm: null,
+            countdownInterval: null,
+            isCountingDown: false,
+            isPaused: false,
+            remainingTime: 0
+        };
+
+        // --- 导航控制 ---
+
+        function showStep(stepNum) {
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('single-display').classList.add('hidden');
+            document.getElementById('countdown-display').classList.add('hidden');
+
+            if (stepNum === 1) document.getElementById('step1').classList.remove('hidden');
+            else if (stepNum === 2) document.getElementById('step2').classList.remove('hidden');
+            else if (stepNum === 3) document.getElementById('single-display').classList.remove('hidden');
+            else if (stepNum === 4) document.getElementById('countdown-display').classList.remove('hidden');
+        }
+
+        function goToStep1() {
+            stopCountdown();
+            showStep(1);
+            state.randomSelection = [];
+            state.selectedTerm = null;
+            updateTermCount();
+        }
+
+        function goToStep2() {
+            const rawText = document.getElementById('inputList').value;
+            const nInput = document.getElementById('nValue').value;
+            const errorMsg = document.getElementById('step1-error');
+            
+            state.terms = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            state.n = parseInt(nInput);
+
+            if (state.terms.length === 0) {
+                showError("请输入至少一个词条！");
+                return;
+            }
+            if (state.n <= 0 || state.n > state.terms.length) {
+                showError(`N值必须在 1 到 ${state.terms.length} 之间`);
+                return;
+            }
+            errorMsg.classList.add('hidden');
+
+            performRandomSelection();
+            document.getElementById('n-display').textContent = state.n;
+            renderRandomGrid();
+            showStep(2);
+        }
+
+        function goToStep3(term) {
+            state.selectedTerm = term;
+            document.getElementById('single-word').textContent = term;
+            showStep(3);
+        }
+
+        function goBackToStep2() {
+            stopCountdown();
+            showStep(2);
+        }
+
+        function showError(msg) {
+            const errorMsg = document.getElementById('step1-error');
+            errorMsg.textContent = msg;
+            errorMsg.classList.remove('hidden');
+        }
+
+        // --- 逻辑函数 ---
+
+        function performRandomSelection() {
+            let tempArray = [...state.terms];
+            // 洗牌算法
+            for (let i = tempArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [tempArray[i], tempArray[j]] = [tempArray[j], tempArray[i]];
+            }
+            state.randomSelection = tempArray.slice(0, state.n);
+        }
+
+        function renderRandomGrid() {
+            const container = document.getElementById('random-container');
+            container.innerHTML = '';
+            
+            if (state.randomSelection.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">没有生成选项，请检查输入</div>';
+                return;
+            }
+
+            state.randomSelection.forEach((term, index) => {
+                const div = document.createElement('div');
+                div.className = "random-item w-full bg-white border-2 border-gray-200 rounded-xl py-4 px-6 text-center text-lg font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all cursor-pointer shadow-sm hover:shadow-md transform hover:-translate-x-1";
+                div.style.animationDelay = `${index * 0.1}s`;
+                div.textContent = term;
+                div.onclick = () => goToStep3(term);
+                container.appendChild(div);
+            });
+        }
+
+        // --- 倒计时核心逻辑 ---
+
+        function setCountdownFromInputs() {
+            const hour = parseInt(document.getElementById('countdownHour').value) || 0;
+            const minute = parseInt(document.getElementById('countdownMinute').value) || 0;
+            const second = parseInt(document.getElementById('countdownSecond').value) || 0;
+            state.countdown = hour * 3600 + minute * 60 + second;
+        }
+
+        function updateCountdownInputs() {
+            let totalSeconds = state.countdown;
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            document.getElementById('countdownHour').value = hours;
+            document.getElementById('countdownMinute').value = minutes;
+            document.getElementById('countdownSecond').value = seconds;
+        }
+
+        function startCountdown() {
+            if (state.isCountingDown && !state.isPaused) return;
+            
+            if (state.isPaused) {
+                togglePause();
+                return;
+            }
+
+            setCountdownFromInputs();
+            if (state.countdown <= 0) {
+                alert("倒计时时间必须大于0");
+                return;
+            }
+
+            showStep(4);
+            // **不再显示词条**
+            
+            state.remainingTime = state.countdown;
+            state.isCountingDown = true;
+            state.isPaused = false;
+            
+            updatePauseBtnUI();
+            updateCountdownDisplay(state.remainingTime);
+
+            if (state.countdownInterval) clearInterval(state.countdownInterval);
+
+            state.countdownInterval = setInterval(() => {
+                if (!state.isPaused) {
+                    state.remainingTime--;
+                    updateCountdownDisplay(state.remainingTime);
+
+                    if (state.remainingTime <= 0) {
+                        finishCountdown();
+                    }
+                }
+            }, 1000);
+        }
+
+        function togglePause() {
+            if (!state.isCountingDown) return;
+
+            state.isPaused = !state.isPaused;
+            updatePauseBtnUI();
+
+            const numElement = document.getElementById('countdown-number');
+            if (state.isPaused) {
+                numElement.classList.add('countdown-paused');
+            } else {
+                numElement.classList.remove('countdown-paused');
+            }
+        }
+
+        function updatePauseBtnUI() {
+            const btn = document.getElementById('btn-pause');
+            const numElement = document.getElementById('countdown-number');
+            
+            if (state.isPaused) {
+                btn.textContent = "继续 (Resume)";
+                btn.classList.add('bg-yellow-600/20');
+                numElement.style.opacity = '0.5';
+                numElement.style.transform = 'scale(0.95)';
+            } else {
+                btn.textContent = "暂停 (Pause)";
+                btn.classList.remove('bg-yellow-600/20');
+                numElement.style.opacity = '1';
+                numElement.style.transform = 'scale(1)';
+            }
+        }
+
+        function updateCountdownDisplay(time) {
+            const numElement = document.getElementById('countdown-number');
+            const formattedTime = formatTime(time);
+            numElement.textContent = formattedTime;
+
+            // 最后10秒视觉警告
+            if (time <= 10 && time > 0) {
+                numElement.style.color = '#ff3333';
+                numElement.style.textShadow = '0 0 20px #ff0000, 0 0 40px #ff0000';
+                // 震动效果 (如果支持)
+                if (navigator.vibrate) navigator.vibrate(50);
+                // 产生粒子
+                createParticles();
+            } else if (time > 10) {
+                numElement.style.color = '#fff';
+                numElement.style.textShadow = '';
+            }
+
+            // 数字变化时的微小脉冲
+            if (time > 0 && !state.isPaused) {
+                numElement.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    if(!state.isPaused) numElement.style.transform = 'scale(1)';
+                }, 150);
+            }
+        }
+
+        function finishCountdown() {
+            clearInterval(state.countdownInterval);
+            state.isCountingDown = false;
+            state.isPaused = false;
+
+            const numElement = document.getElementById('countdown-number');
+            const container = document.getElementById('countdown-display');
+            
+            // 1. 全屏闪烁特效
+            container.classList.add('finish-anim');
+
+            // 2. 爆炸文字特效
+            triggerExplosionText();
+
+            // 3. 数字归零并放大
+            numElement.textContent = "00:00:00";
+            numElement.style.transform = "scale(1.5)";
+            numElement.style.color = "#ff00de";
+            numElement.style.textShadow = "0 0 50px #ff00de, 0 0 100px #ff00de";
+
+            // 4. 2秒后返回词条界面 (步骤3)
+            setTimeout(() => {
+                container.classList.remove('finish-anim');
+                numElement.style.transform = "";
+                showStep(3);
+                // 触发步骤3的结束特效
+                triggerFinishEffect();
+            }, 2000);
+        }
+
+        function cancelCountdown() {
+            stopCountdown();
+            showStep(3);
+        }
+
+        function stopCountdown() {
+            if (state.countdownInterval) {
+                clearInterval(state.countdownInterval);
+                state.countdownInterval = null;
+            }
+            state.isCountingDown = false;
+            state.isPaused = false;
+            state.remainingTime = 0;
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600)  / 60);
+            const secs = seconds % 60;
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // --- 特效函数 ---
+
+        function createParticles() {
+            const container = document.getElementById('particle-container');
+            if (!container) return;
+            
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+
+            for (let i = 0; i < 3; i++) { // 每次产生3个粒子
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = centerX + 'px';
+                particle.style.top = centerY + 'px';
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 50 + Math.random() * 150;
+                const x = Math.cos(angle) * distance;
+                const y = Math.sin(angle) * distance;
+                
+                particle.style.setProperty('--x', `${x}px`);
+                particle.style.setProperty('--y', `${y}px`);
+                particle.style.background = ['#ff00de', '#00ffff', '#ffffff'][Math.floor(Math.random() * 3)];
+                
+                container.appendChild(particle);
+                
+                setTimeout(() => particle.remove(), 1000);
+            }
+        }
+
+        function triggerExplosionText() {
+            const container = document.getElementById('countdown-display');
+            const text = "TIME UP!";
+            
+            for (let i = 0; i < 12; i++) {
+                const span = document.createElement('span');
+                span.textContent = text;
+                span.className = 'explode-text text-4xl font-bold text-white';
+                
+                const angle = (i / 12) * Math.PI * 2;
+                const distance = 100 + Math.random() * 100;
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance;
+                
+                const startX = 50 + (Math.random() - 0.5) * 0.2;
+                const startY = 50 + (Math.random() - 0.2) * 0.2;
+
+                span.style.left = `${startX}%`;
+                span.style.top = `${startY}%`;
+                span.style.setProperty('--tx', `${tx}px`);
+                span.style.setProperty('--ty', `${ty}px`);
+                
+                container.appendChild(span);
+                setTimeout(() => span.remove(), 1000);
+            }
+        }
+
+        function triggerFinishEffect() {
+            const wordElement = document.getElementById('single-word');
+            if (wordElement) {
+                wordElement.classList.add('finish-anim');
+                setTimeout(() => wordElement.classList.remove('finish-anim'), 1500);
+            }
+        }
+
+        // --- 保存/加载功能 (多词库支持) ---
+
+        function saveTerms() {
+            const name = document.getElementById('saveName').value.trim();
+            const rawText = document.getElementById('inputList').value.trim();
+            
+            if (!name || !rawText) {
+                alert('请输入名称和词条！');
+                return;
+            }
+
+            setCountdownFromInputs();
+
+            // 修正键名：之前的代码可能有笔误 '0savedTerms'
+            let savedTerms = JSON.parse(localStorage.getItem('savedTerms') || '{}');
+            
+            if (savedTerms[name] && !confirm(`"${name}" 已存在，是否覆盖？`)) {
+                return;
+            }
+
+            savedTerms[name] = {
+                terms: rawText,
+                n: document.getElementById('nValue').value,
+                countdown: state.countdown,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('savedTerms', JSON.stringify(savedTerms));
+            
+            document.getElementById('saveName').value = '';
+            updateLoadSelect();
+            alert(`"${name}" 已保存！`);
+        }
+
+        function loadTerms() {
+            const select = document.getElementById('loadSelect');
+            // 获取所有选中的选项
+            const selectedOptions = Array.from(select.selectedOptions);
+            
+            if (selectedOptions.length === 0) {
+                alert('请先选择一个或多个词库！');
+                return;
+            }
+
+            let mergedTerms = [];
+            let nValue = null;
+            let countdownValue = null;
+
+            // 遍历选中的每一个词库
+            selectedOptions.forEach(option => {
+                const name = option.value;
+                const savedTerms = JSON.parse(localStorage.getItem('savedTerms') || '{}');
+                const data = savedTerms[name];
+                
+                if (data) {
+                    // 合并词条
+                    const termsArray = data.terms.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    mergedTerms = mergedTerms.concat(termsArray);
+                    
+                    // 优先使用第一个选中的词库的N值和倒计时设置
+                    if (nValue === null) nValue = data.n;
+                    if (countdownValue === null) countdownValue = data.countdown;
+                }
+            });
+
+            // 去重 (可选，如果希望保留重复项可以去掉这行)
+            // mergedTerms = [...new Set(mergedTerms)];
+
+            // 更新UI和状态
+            document.getElementById('inputList').value = mergedTerms.join('\n');
+            document.getElementById('nValue').value = nValue || 3;
+            state.countdown = countdownValue || 30;
+            updateCountdownInputs();
+            updateTermCount();
+
+            // 提示用户
+            const names = selectedOptions.map(o => o.value).join('、');
+            alert(`已合并加载 ${selectedOptions.length} 个词库：${names}`);
+        }
+
+        function deleteSelectedTerms() {
+            const select = document.getElementById('loadSelect');
+            const selectedOptions = Array.from(select.selectedOptions);
+            
+            if (selectedOptions.length === 0) {
+                alert('请先选择要删除的词库！');
+                return;
+            }
+
+            if (!confirm(`确定要删除选中的 ${selectedOptions.length} 个词库吗？`)) {
+                return;
+            }
+
+            const savedTerms = JSON.parse(localStorage.getItem('savedTerms') || '{}');
+            
+            selectedOptions.forEach(option => {
+                delete savedTerms[option.value];
+            });
+
+            localStorage.setItem('savedTerms', JSON.stringify(savedTerms));
+            updateLoadSelect();
+            alert('删除成功！');
+        }
+
+        function updateLoadSelect() {
+            const select = document.getElementById('loadSelect');
+            // 修正键名
+            const savedTerms = JSON.parse(localStorage.getItem('savedTerms') || '{}');
+            
+            select.innerHTML = ''; // 清空现有选项
+
+            // 按时间戳排序，最新的在最上面
+            const sortedNames = Object.keys(savedTerms).sort((a, b) => {
+                return new Date(savedTerms[b].timestamp) - new Date(savedTerms[a].timestamp);
+            });
+
+            sortedNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = `${name} (${savedTerms[name].terms.split('\n').length}个词)`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateTermCount() {
+            const rawText = document.getElementById('inputList').value;
+            const count = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0).length;
+            document.getElementById('term-count').textContent = count;
+        }
+
+        // 初始化
+        document.getElementById('inputList').addEventListener('input', updateTermCount);
+        window.onload = function() {
+            updateLoadSelect();
+            updateTermCount();
+        };
+    </script>
+</body>
+</html>
